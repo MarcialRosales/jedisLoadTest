@@ -295,8 +295,8 @@ public class JedisMultipleTestClient  implements CommandLineRunner {
 						workflow.invoke();
 					}
 					workflow.terminate();
-					if (!latch) {
-						latch = true;
+					if (latch) {
+						latch = false;
 						System.out.println("Restored connection");
 					}					
 				}catch(JedisConnectionException e) {
