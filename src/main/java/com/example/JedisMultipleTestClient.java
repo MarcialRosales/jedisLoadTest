@@ -274,7 +274,27 @@ public class JedisMultipleTestClient  implements CommandLineRunner {
 		WorkflowSequencer(Workflow workflow) {
 			this.workflow = workflow;
 		}
-		
+		private boolean waitUntilConnectionRestored(int mSecondsToWait) {
+			long t0 = System.currentTimeMillis();
+			while (!isConnected()) {
+				try {
+					Thread.sleep(1000);
+					if ( (System.currentTimeMillis() - t0) > mSecondsToWait) {
+						return false;
+					}
+				} catch (InterruptedException e) {
+					return false;
+				}
+			}
+			return true;
+		}
+		private boolean isConnected() {
+			try (Jedis jedis = pool.getResource()) {
+				return jedis.isConnected();
+			}catch(RuntimeException e) {
+				return false;
+			}
+		}
 		public void run() {
 			
 			// every time simulates a distinct workflow/user
@@ -283,11 +303,12 @@ public class JedisMultipleTestClient  implements CommandLineRunner {
 				
 				try {
 					if (latch) {
-						try {
-							Thread.sleep(5000);
-						} catch (InterruptedException e) {
-							// TODO Auto-generated catch block
-							e.printStackTrace();
+						if (!waitUntilConnectionRestored(120000)) {
+							System.err.println("Abort workflow after 2min waiting for connection");
+							return;
+						}else {
+							System.out.println("Restored connection");
+							latch = false;
 						}
 					}
 					workflow.begin();
@@ -295,17 +316,13 @@ public class JedisMultipleTestClient  implements CommandLineRunner {
 						workflow.invoke();
 					}
 					workflow.terminate();
-					if (latch) {
-						latch = false;
-						System.out.println("Restored connection");
-					}					
+										
 				}catch(JedisConnectionException e) {
 					if (!latch) {
 						System.err.println(e.getMessage());
 						latch = true;
 					}
 				}
-				
 				
 			}
 			waitUntilCompleted.release();
