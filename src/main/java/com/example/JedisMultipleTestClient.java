@@ -213,7 +213,7 @@ public class JedisMultipleTestClient  implements CommandLineRunner {
 		
 		// we no need to start them at the same time (i..e semaphore, etc)
 		for (int i = 0; i < concurrentProducers; i++){
-			executor.execute(new WorkflowSequencer(new WorkflowImpl(i, cmdStrategy,  stats[i] = new Stat())));
+			executor.execute(new WorkflowSequencer(new ResilientWorkflow(new WorkflowImpl(i, cmdStrategy,  stats[i] = new Stat()))));
 		}
 		
 		// Note: we wait abortAfterNMin minutes for safety but clearly 
@@ -252,7 +252,7 @@ public class JedisMultipleTestClient  implements CommandLineRunner {
 		
 		sb.setLength(0);
 		if (greaterThanThreshold > 0) {
-			double percentage = (greaterThanThreshold * 100.0) / totalCommands;
+			long percentage = (greaterThanThreshold * 100) / totalCommands;
 			sb.append("% greater than threshold(").append(thresholdMsec).append("msec)").append("").append(percentage)
 				.append("% (").append(greaterThanThreshold).append(")");
 		}else {
@@ -298,37 +298,93 @@ public class JedisMultipleTestClient  implements CommandLineRunner {
 		public void run() {
 			
 			// every time simulates a distinct workflow/user
-			boolean latch = false;
 			for (int i = 0; i < times; i++) {
 				
-				try {
-					if (latch) {
-						if (!waitUntilConnectionRestored(120000)) {
-							System.err.println("Abort workflow after 2min waiting for connection");
-							return;
-						}else {
-							System.out.println("Restored connection");
-							latch = false;
-						}
-					}
-					workflow.begin();
-					for (int j = 0; j < workflowTimes; j++) {
-						workflow.invoke();
-					}
-					workflow.terminate();
-										
-				}catch(JedisConnectionException e) {
-					if (!latch) {
-						System.err.println(e.getMessage());
-						latch = true;
-					}
+				workflow.begin();
+				for (int j = 0; j < workflowTimes; j++) {
+					workflow.invoke();
 				}
-				
+				workflow.terminate();
+									
+			
 			}
 			waitUntilCompleted.release();
 		}
 	}
-	
+	public class ResilientWorkflow implements Workflow {
+		public ResilientWorkflow(Workflow wf) {
+			super();
+			this.wf = wf;
+		}
+
+		Workflow wf;
+
+		@Override
+		public void begin() {
+			try {
+				wf.begin();
+			}catch(JedisConnectionException e) {
+				System.err.println("Connection lost");
+				if (waitUntilConnectionRestored(120000)) {
+					System.out.println("Connection recovered");
+					wf.begin();
+				}else {
+					throw e;
+				}
+			}
+		}
+
+		@Override
+		public void terminate() {
+			try {
+				wf.terminate();
+			}catch(JedisConnectionException e) {
+				System.err.println("Connection lost");
+				if (waitUntilConnectionRestored(120000)) {
+					System.out.println("Connection recovered");
+					wf.terminate();
+				}else {
+					throw e;
+				}
+			}
+		}
+
+		@Override
+		public void invoke() {
+			try {
+				wf.invoke();
+			}catch(JedisConnectionException e) {
+				System.err.println("Connection lost");
+				if (waitUntilConnectionRestored(120000)) {
+					System.out.println("Connection recovered");
+					wf.invoke();
+				}else {
+					throw e;
+				}
+			}
+		}
+		private boolean waitUntilConnectionRestored(int mSecondsToWait) {
+			long t0 = System.currentTimeMillis();
+			while (!isConnected()) {
+				try {
+					Thread.sleep(1000);
+					if ( (System.currentTimeMillis() - t0) > mSecondsToWait) {
+						return false;
+					}
+				} catch (InterruptedException e) {
+					return false;
+				}
+			}
+			return true;
+		}
+		private boolean isConnected() {
+			try (Jedis jedis = pool.getResource()) {
+				return jedis.isConnected();
+			}catch(RuntimeException e) {
+				return false;
+			}
+		}
+	}
 	public interface Workflow {
 		void begin();
 		void terminate();
