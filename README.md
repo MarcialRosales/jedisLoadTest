@@ -27,17 +27,21 @@ Number of unique keys generated as the result of invoking the above command: tim
 Additional parameters:<br>
 parameterName:defaultValue<br>
 
-redis:localhost       location of redis server  <br>
-poolSize:10           number of connections allowed in the pool<br>
-concurrentProducers:1<br>
-times:1<br>
-abortAfterNMin:5      abort the test if it does not finish in less than 5 minutes<br>
-workflowTimes:10     <br>
-entryCount:2          number of keys<br>
-fieldCount:10         number of fields per key<br>
-dataLength:100        field´s value lenght in bytes<br>
-expiryInSec:120       expiry time in seconds for the keys<br>
-cmdStrategy:single    single uses hget/hset , multiple uses hmget/hmset<br> 
-thresholdMsec:100     track how many commands executed over 100msec.<br>
-
+<table>
+<tr><td>redis:localhost </td><td>      location of redis server (if sentinelMaster is blank)  </td>
+<tr><td>sentinelMaster:   </td> name of the sentinel master. Blank if we are not using Sentinel. <td>
+<tr><td>sentinels:locahost:26379</td> comma-separated listed of sentinels. This setting is used if sentinelMaster is not blank. <td>    
+<tr><td>poolSize:10       </td><td>    number of connections allowed in the pool </td>
+<tr><td>concurrentProducers:1</td><td></td>
+<tr><td>times:1</td><td></td>
+<tr><td>abortAfterNMin:5  </td><td>    abort the test if it does not finish in less than 5 minutes</td>
+<tr><td>workflowTimes:10     </td><td></td>
+<tr><td>entryCount:2        </td><td>  number of keys</td>
+<tr><td>fieldCount:10       </td><td>  number of fields per key</td>
+<tr><td>dataLength:100      </td><td>  field´s value lenght in bytes</td>
+<tr><td>expiryInSec:120     </td><td>  expiry time in seconds for the keys</td>
+<tr><td>deleteKeys:true  </td><td>     delete the keys after running a full workflow (i.e. workflowTimes). if false, the keys are not removed and redis removes them when they expire.</td>
+<tr><td>cmdStrategy:single  </td><td>  single uses hget/hset , multiple uses hmget/hmset</td>
+<tr><td>thresholdMsec:100     </td><td>track how many commands executed over 100msec</td>
+</table>
 

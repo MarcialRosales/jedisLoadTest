@@ -2,7 +2,9 @@ package com.example;
 
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Semaphore;
@@ -16,6 +18,7 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
 import redis.clients.jedis.Jedis;
 import redis.clients.jedis.JedisPool;
 import redis.clients.jedis.JedisPoolConfig;
+import redis.clients.jedis.JedisSentinelPool;
 
 /**
  * 
@@ -26,11 +29,23 @@ import redis.clients.jedis.JedisPoolConfig;
 @SpringBootApplication
 public class JedisMultipleTestClient  implements CommandLineRunner {
 
-	JedisPool pool;
+	Pool pool;
 
-	/** Redis server hostname */
+	/** Redis server hostname or Sentinel hostname */
 	@Value("${redis:localhost}")
 	String redis = "localhost";
+
+	/** Redis server port */
+	@Value("${redisPort:6379}")
+	int redisPort = 6379;
+
+	/** Sentinels defined as hostname:port separated by commas */
+	@Value("${sentinels:localhost:26379}")
+	String sentinels = "localhost:26379";
+
+	/** Redis Sentinel master name. Leave it blank if you are not using Sentinel.   */
+	@Value("${sentinelMaster:}")
+	String sentinelMaster = "";
 	
 	/** maximum number of connections in the JedisPool */
 	@Value("${poolSize:10}")
@@ -68,6 +83,10 @@ public class JedisMultipleTestClient  implements CommandLineRunner {
 	@Value("${expiryInSec:120}")
 	int expiryInSec = 120; // after 2 minutes
 	
+	/** delete keys when workflowTimes completes  */
+	@Value("${deleteKeys:true}")
+	boolean deleteKeys = true; 
+
 	/** type of command used to set/get keys in a hash: Either single (uses hget/hset) vs multiple (hmset/hmget) */
 	@Value("${cmdStrategy:single}")
 	String strategy = "single";
@@ -88,13 +107,7 @@ public class JedisMultipleTestClient  implements CommandLineRunner {
 	
 	
 	private void start() {
-		JedisPoolConfig config = new JedisPoolConfig();
 		
-		config.setBlockWhenExhausted(true);
-		config.setMaxTotal(poolSize);
-		config.setMaxWaitMillis(60000);
-		
-		pool = new JedisPool(config, redis, 6379);
 		
 		executor = Executors.newFixedThreadPool(concurrentProducers);
 		
@@ -110,7 +123,22 @@ public class JedisMultipleTestClient  implements CommandLineRunner {
 			break;
 		}
 		
-		System.out.println("redis:" + redis);
+		JedisPoolConfig config = new JedisPoolConfig();
+		config.setBlockWhenExhausted(true);
+		config.setMaxTotal(poolSize);
+		config.setMaxWaitMillis(60000);
+
+		if (sentinelMaster != "") {
+			String[] values = sentinels.split(",");
+			Set<String> sentinelSet = new HashSet<String>(Arrays.asList(values)); 
+			this.pool = new SentinelPool(new JedisSentinelPool(sentinelMaster, sentinelSet, config));
+			System.out.println("sentinels:" + sentinels);
+			System.out.println("sentinelMaster:" + sentinelMaster);
+		}else {
+			this.pool = new StandardPool(new JedisPool(config, redis, 6379));
+			System.out.println("redis hostname:" + redis);
+		}
+		
 		System.out.println("poolSize:" + poolSize);
 		System.out.println("concurrentProducers:" + concurrentProducers);
 		System.out.println("times:" + times);
@@ -118,6 +146,7 @@ public class JedisMultipleTestClient  implements CommandLineRunner {
 		System.out.println("dataLength:" + dataLength);
 		System.out.println("entryCount:" + entryCount);
 		System.out.println("expiryInSec:" + expiryInSec);
+		System.out.println("deleteKeys:" + deleteKeys);
 		System.out.println("thresholdMsec:" + thresholdMsec);
 		System.out.println("cmdStrategy:" + strategy);
 		
@@ -125,6 +154,48 @@ public class JedisMultipleTestClient  implements CommandLineRunner {
 		
 	}
 
+	interface Pool {
+		Jedis getResource();
+		void destroy();
+	}
+	
+	class StandardPool implements Pool {
+		JedisPool pool;
+		
+		public StandardPool(JedisPool pool) {
+			super();
+			this.pool = pool;
+		}
+
+		public Jedis getResource() {
+			return pool.getResource();
+		}
+
+		@Override
+		public void destroy() {
+			pool.destroy();
+			
+		}
+	}
+	class SentinelPool implements Pool {
+		JedisSentinelPool pool;
+		
+		public SentinelPool(JedisSentinelPool pool) {
+			super();
+			this.pool = pool;
+		}
+
+		public Jedis getResource() {
+			return pool.getResource();
+		}
+		@Override
+		public void destroy() {
+			pool.destroy();
+			
+		}
+
+	}
+	
 	private void healthCheck() {
 		// check whether server is running or not
 		try (Jedis jedis = pool.getResource()) {
@@ -260,15 +331,23 @@ public class JedisMultipleTestClient  implements CommandLineRunner {
 				
 			}
 		}
+		int sequence = 0;
 		public void begin() {
-			Arrays.fill(keys, null);
+			StringBuilder sb = new StringBuilder();
+			for (int i = 0; i < keys.length; i++) {
+				String key = sb.append("K").append(id).append(System.currentTimeMillis()).append(i).toString();
+				keys[i] = key.getBytes();
+				sb.setLength(0);
+			}
+		
 		}
 		public void terminate() {
-			// remove the key(s) : simulates the client logging out 
-			try (Jedis jedis = pool.getResource()) {
-				jedis.del(keys);
+			// remove the key(s) : simulates the client logging out
+			if (deleteKeys) {
+				try (Jedis jedis = pool.getResource()) {
+					jedis.del(keys);
+				}
 			}
-
 		}
 		public void invoke() {
 			try (Jedis jedis = pool.getResource()) {
@@ -288,10 +367,6 @@ public class JedisMultipleTestClient  implements CommandLineRunner {
 		public void set(Jedis jedis, Stat stat, byte[][] keys,  Map<byte[],byte[]> fields, long expiry) {
 			for (int i = 0; i < entryCount; i++) {
 				for (Map.Entry<byte[], byte[]> entry : fields.entrySet()) {
-					if (keys[i] == null) {
-						String keyPrefix = "key" + System.currentTimeMillis();
-						keys[i] = (keyPrefix + i).getBytes();
-					}
 					long t0 = System.currentTimeMillis();
 					jedis.hset(keys[i], entry.getKey(), entry.getValue());
 					long t1 = System.currentTimeMillis();
