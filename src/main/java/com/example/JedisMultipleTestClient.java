@@ -19,6 +19,7 @@ import redis.clients.jedis.Jedis;
 import redis.clients.jedis.JedisPool;
 import redis.clients.jedis.JedisPoolConfig;
 import redis.clients.jedis.JedisSentinelPool;
+import redis.clients.jedis.exceptions.JedisConnectionException;
 
 /**
  * 
@@ -277,15 +278,34 @@ public class JedisMultipleTestClient  implements CommandLineRunner {
 		public void run() {
 			
 			// every time simulates a distinct workflow/user
+			boolean latch = false;
 			for (int i = 0; i < times; i++) {
 				
-				workflow.begin();
-				
-				for (int j = 0; j < workflowTimes; j++) {
-					workflow.invoke();
+				try {
+					if (latch) {
+						try {
+							Thread.sleep(5000);
+						} catch (InterruptedException e) {
+							// TODO Auto-generated catch block
+							e.printStackTrace();
+						}
+					}
+					workflow.begin();
+					for (int j = 0; j < workflowTimes; j++) {
+						workflow.invoke();
+					}
+					workflow.terminate();
+					if (!latch) {
+						latch = true;
+						System.out.println("Restored connection");
+					}					
+				}catch(JedisConnectionException e) {
+					if (!latch) {
+						System.err.println(e.getMessage());
+						latch = true;
+					}
 				}
 				
-				workflow.terminate();
 				
 			}
 			waitUntilCompleted.release();
