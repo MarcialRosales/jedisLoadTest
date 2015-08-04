@@ -17,20 +17,20 @@ The parameter 'concurrentProducers' allows us to have parallel workflows running
 
 Number of unique keys generated as the result of invoking the above command: times * entryCount * concurrentProducers
 
-Additional parameters:
-parameterName:defaultValue
+Additional parameters:<br>
+parameterName:defaultValue<br>
 
-redis:localhost       location of redis server
-poolSize:10           number of connections allowed in the pool
-concurrentProducers:1
-times:1
-abortAfterNMin:5      abort the test if it does not finish in less than 5 minutes
-workflowTimes:10     
-entryCount:2          number of keys
-fieldCount:10         number of fields per key
-dataLength:100        field´s value lenght in bytes
-expiryInSec:120       expiry time in seconds for the keys
-cmdStrategy:single    single uses hget/hset , multiple uses hmget/hmset 
-thresholdMsec:100     track how many commands executed over 100msec.
+redis:localhost       location of redis server  <br>
+poolSize:10           number of connections allowed in the pool<br>
+concurrentProducers:1<br>
+times:1<br>
+abortAfterNMin:5      abort the test if it does not finish in less than 5 minutes<br>
+workflowTimes:10     <br>
+entryCount:2          number of keys<br>
+fieldCount:10         number of fields per key<br>
+dataLength:100        field´s value lenght in bytes<br>
+expiryInSec:120       expiry time in seconds for the keys<br>
+cmdStrategy:single    single uses hget/hset , multiple uses hmget/hmset<br> 
+thresholdMsec:100     track how many commands executed over 100msec.<br>
 
 
