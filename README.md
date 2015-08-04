@@ -7,9 +7,18 @@ java -Dtimes=10 -DworkflowTimes=100 -DconcurrentProducers=150 -DpoolSize=150 -De
   
    ... if redis server is running in the current machine and listening on localhost
    
-java -redis=redisServer -Dtimes=10 -DworkflowTimes=100 -DconcurrentProducers=150 -DpoolSize=150 -DentryCount=1 -DfieldCount=10 -jar target/spring-data-jedis-0.0.1-SNAPSHOT.jar 
+java -Dredis=redisServer -Dtimes=10 -DworkflowTimes=100 -DconcurrentProducers=150 -DpoolSize=150 -DentryCount=1 -DfieldCount=10 -jar target/spring-data-jedis-0.0.1-SNAPSHOT.jar 
    
    ... if redis server is listening on the host 'redisServer'
+   
+java -DsentinelMaster=mymaster -Dtimes=10 -DworkflowTimes=100 -DconcurrentProducers=150 -DpoolSize=150 -DentryCount=1 -DfieldCount=10 -jar target/spring-data-jedis-0.0.1-SNAPSHOT.jar 
+
+   ... if you are using Sentinel and your master is called mymaster and your sentinel is running on localhost:26379
+   
+java -DsentinelMaster=mymaster -Dsentinels=mysentinel:1223 -Dtimes=10 -DworkflowTimes=100 -DconcurrentProducers=150 -DpoolSize=150 -DentryCount=1 -DfieldCount=10 -jar target/spring-data-jedis-0.0.1-SNAPSHOT.jar 
+
+   ... if you are using Sentinel and your master is called mymaster and your sentinel is running on mysentinel:1223
+   
    
 
 Workflow: A set of redis commands that are invoked upon a user´s request. They are executed within the context of a single Redis Connection.
