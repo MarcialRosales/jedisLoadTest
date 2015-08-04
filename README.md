@@ -25,12 +25,12 @@ The parameter 'concurrentProducers' allows us to have parallel workflows running
 Number of unique keys generated as the result of invoking the above command: times * entryCount * concurrentProducers
 
 Additional parameters:<br>
-parameterName:defaultValue<br>
 
 <table>
+<tr><th>parameter:defaultValue</th><th>description</th></tr>
 <tr><td>redis:localhost </td><td>      location of redis server (if sentinelMaster is blank)  </td>
-<tr><td>sentinelMaster:   </td> name of the sentinel master. Blank if we are not using Sentinel. <td>
-<tr><td>sentinels:locahost:26379</td> comma-separated listed of sentinels. This setting is used if sentinelMaster is not blank. <td>    
+<tr><td>sentinelMaster:   </td><td> name of the sentinel master. Blank if we are not using Sentinel. </td>
+<tr><td>sentinels:locahost:26379</td><td>comma-separated listed of sentinels. This setting is used if sentinelMaster is not blank. </td>    
 <tr><td>poolSize:10       </td><td>    number of connections allowed in the pool </td>
 <tr><td>concurrentProducers:1</td><td></td>
 <tr><td>times:1</td><td></td>
