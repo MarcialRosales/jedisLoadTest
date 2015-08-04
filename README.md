@@ -1,10 +1,11 @@
 # jedisLoadTest
 
-To execute the load test run the following command:
+To execute the load test run the following command. The load test simulates concurrent user requests where a user request triggers various redis commands. From now
+on we call Workflow to the set of commands invoked upon a user request:
 
 java -jar target/spring-data-jedis-0.0.1-SNAPSHOT.jar  -Dtimes=10 -DworkflowTimes=100 -DconcurrentProducers=150 -DpoolSize=150 -DentryCount=1 -DfieldCount=10
 
-Workflow: A set of redis commands that are triggered upon a user´s request. This set of commands executes within the context of a single Redis Connection.
+Workflow: A set of redis commands that are invoked upon a user´s request. They are executed within the context of a single Redis Connection.
 The commands invoked by a workflow are hash commands: HSet/HMSet and Hget/HMGet. The workflow uses as many keys as indicated by the parameter entryCount.
 And as many fields as 'fieldCount'.
 The first time we invoke a workflow, it creates a unique set of keys. 
