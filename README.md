@@ -3,19 +3,27 @@
 To execute the load test run the following command. The load test simulates concurrent user requests where a user request triggers various redis commands. From now
 on we call Workflow to the set of commands invoked upon a user request:
 
+<pre>  
 java -Dtimes=10 -DworkflowTimes=100 -DconcurrentProducers=150 -DpoolSize=150 -DentryCount=1 -DfieldCount=10 -jar target/spring-data-jedis-0.0.1-SNAPSHOT.jar 
-  
+</pre>
+
    ... if redis server is running in the current machine and listening on localhost
    
+<pre>  
 java -Dredis=redisServer -Dtimes=10 -DworkflowTimes=100 -DconcurrentProducers=150 -DpoolSize=150 -DentryCount=1 -DfieldCount=10 -jar target/spring-data-jedis-0.0.1-SNAPSHOT.jar 
+</pre>
    
    ... if redis server is listening on the host 'redisServer'
    
+<pre>  
 java -DsentinelMaster=mymaster -Dtimes=10 -DworkflowTimes=100 -DconcurrentProducers=150 -DpoolSize=150 -DentryCount=1 -DfieldCount=10 -jar target/spring-data-jedis-0.0.1-SNAPSHOT.jar 
+</pre>
 
    ... if you are using Sentinel and your master is called mymaster and your sentinel is running on localhost:26379
    
+<pre>  
 java -DsentinelMaster=mymaster -Dsentinels=mysentinel:1223 -Dtimes=10 -DworkflowTimes=100 -DconcurrentProducers=150 -DpoolSize=150 -DentryCount=1 -DfieldCount=10 -jar target/spring-data-jedis-0.0.1-SNAPSHOT.jar 
+</pre>
 
    ... if you are using Sentinel and your master is called mymaster and your sentinel is running on mysentinel:1223
    
