@@ -40,7 +40,7 @@ public class JedisMultipleTestClient  implements CommandLineRunner {
 	@Value("${concurrentProducers:1}")
 	int concurrentProducers = 1;
 
-	/** how many times we repeat or iterate we shall over a single workflow, simulating load from one client */
+	/** how many times we restart a workflow */
 	@Value("${times:1}")
 	int times = 1;
 
@@ -48,7 +48,7 @@ public class JedisMultipleTestClient  implements CommandLineRunner {
 	@Value("${abortAfterNMin:5}")
 	int abortAfterNMin = 5;
 
-	/** how many times we repeat or iterate over a single workflow, simulating load from one client */
+	/** how many times we repeat or iterate over a single workflow, simulating a client requesting the worklow 'workflowTimes' */
 	@Value("${workflowTimes:10}")
 	int workflowTimes = 10;
 
@@ -66,7 +66,7 @@ public class JedisMultipleTestClient  implements CommandLineRunner {
 	
 	/** Key's expiry  */
 	@Value("${expiryInSec:120}")
-	int expiryInSec = 2*60; // after 2 minutes
+	int expiryInSec = 120; // after 2 minutes
 	
 	/** type of command used to set/get keys in a hash: Either single (uses hget/hset) vs multiple (hmset/hmget) */
 	@Value("${cmdStrategy:single}")
@@ -143,13 +143,11 @@ public class JedisMultipleTestClient  implements CommandLineRunner {
 		
 		// Note: we wait abortAfterNMin minutes for safety but clearly 
 		if (waitUntilCompleted.tryAcquire(concurrentProducers, abortAfterNMin, TimeUnit.MINUTES)) {
-			printStats();
 			System.out.println("All " + concurrentProducers + " completed");
 		}else {
-			printStats();
 			System.out.println("Only " + waitUntilCompleted.availablePermits() + " completed after " + abortAfterNMin + "(abortAfterNMin) minutes");
 		}
-		
+		printStats();
 	}
 	
 	private void printStats() {
@@ -167,6 +165,7 @@ public class JedisMultipleTestClient  implements CommandLineRunner {
 			totalCommands += stats[i].totalCommands;
 			greaterThanThreshold += stats[i].greaterThanThreshold;
 		}
+		
 		StringBuilder sb = new StringBuilder();
 		
 		sb.append("Total Commands:").append(totalCommands);
@@ -213,7 +212,6 @@ public class JedisMultipleTestClient  implements CommandLineRunner {
 				
 				workflow.terminate();
 				
-				
 			}
 			waitUntilCompleted.release();
 		}
@@ -230,7 +228,7 @@ public class JedisMultipleTestClient  implements CommandLineRunner {
 	 * as its cache mechanism.
 	 * Every time we run a workflow, it will set 'entryCount' keys (entryCount) and it will get them too. 
 	 * 
-	 * Typically, each workflow will be invoked by one and only one thread simulating this way multiple concurrent users.
+	 * Typically, each workflow will be invoked by one and only one thread. 
 	 * 
 	 * @author mrosales
 	 *
