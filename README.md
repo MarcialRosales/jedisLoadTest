@@ -28,7 +28,7 @@ java -DsentinelMaster=mymaster -Dsentinels=mysentinel:1223 -Dtimes=10 -Dworkflow
    ... if you are using Sentinel and your master is called mymaster and your sentinel is running on mysentinel:1223
    
    
-
+<h2>Description</h2>
 Workflow: A set of redis commands that are invoked upon a user´s request. They are executed within the context of a single Redis Connection.
 The commands invoked by a workflow are hash commands: HSet/HMSet and Hget/HMGet. The workflow uses as many keys as indicated by the parameter entryCount.
 And as many fields as 'fieldCount'.
@@ -41,7 +41,7 @@ The parameter 'concurrentProducers' allows us to have parallel workflows running
 
 Number of unique keys generated as the result of invoking the above command: times * entryCount * concurrentProducers
 
-Additional parameters:<br>
+<h2>Parameters</h2>
 
 <table>
 <tr><th>parameter:defaultValue</th><th>description</th></tr>
