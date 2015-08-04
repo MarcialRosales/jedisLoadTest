@@ -136,7 +136,7 @@ public class JedisMultipleTestClient  implements CommandLineRunner {
 			System.out.println("sentinelMaster:" + sentinelMaster);
 		}else {
 			this.pool = new StandardPool(new JedisPool(config, redis, 6379));
-			System.out.println("redis hostname:" + redis);
+			System.out.println("redis:" + redis);
 		}
 		
 		System.out.println("poolSize:" + poolSize);
@@ -206,6 +206,9 @@ public class JedisMultipleTestClient  implements CommandLineRunner {
 	private void test() throws InterruptedException {
 		
 		System.out.println("Executing Test with "+ concurrentProducers + " concurrent connections");
+		if (poolSize < concurrentProducers) {
+			System.err.println("Note: poolSize < concurrentProducers");
+		}
 		
 		// we no need to start them at the same time (i..e semaphore, etc)
 		for (int i = 0; i < concurrentProducers; i++){
@@ -248,8 +251,9 @@ public class JedisMultipleTestClient  implements CommandLineRunner {
 		
 		sb.setLength(0);
 		if (greaterThanThreshold > 0) {
-			sb.append("% greater than threshold(").append(thresholdMsec).append("msec)").append(greaterThanThreshold).append("").append(greaterThanThreshold * 100 / totalCommands)
-			.append("% (").append(greaterThanThreshold).append(")");
+			double percentage = (greaterThanThreshold * 100.0) / totalCommands;
+			sb.append("% greater than threshold(").append(thresholdMsec).append("msec)").append("").append(percentage)
+				.append("% (").append(greaterThanThreshold).append(")");
 		}else {
 			sb.append("Latency below ").append(thresholdMsec).append("msec");
 		}
