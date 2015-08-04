@@ -128,7 +128,7 @@ public class JedisMultipleTestClient  implements CommandLineRunner {
 		config.setMaxTotal(poolSize);
 		config.setMaxWaitMillis(60000);
 
-		if (sentinelMaster != "") {
+		if (sentinelMaster.trim().length() > 0) {
 			String[] values = sentinels.split(",");
 			Set<String> sentinelSet = new HashSet<String>(Arrays.asList(values)); 
 			this.pool = new SentinelPool(new JedisSentinelPool(sentinelMaster, sentinelSet, config));
