@@ -11,6 +11,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.CommandLineRunner;
@@ -99,6 +100,10 @@ public class JedisMultipleTestClient  implements CommandLineRunner {
 	@Value("${thresholdMsec:100}")
 	int thresholdMsec = 100;
 	
+	/** threshold wait time for getting a JedisConnection */
+	@Value("${thresholdWaitJedisPoolMsec:10}")
+	int thresholdWaitJedisPoolMsec = 10;
+
 	enum CmdStrategyType {
 		single, multiple
 	}
@@ -129,7 +134,8 @@ public class JedisMultipleTestClient  implements CommandLineRunner {
 		JedisPoolConfig config = new JedisPoolConfig();
 		config.setBlockWhenExhausted(true);
 		config.setMaxTotal(poolSize);
-		config.setMaxWaitMillis(60000);
+		config.setMaxWaitMillis(1000); // wait at most 1sec for a connection
+		
 
 		System.out.println("----- Settings :");
 		
@@ -137,11 +143,15 @@ public class JedisMultipleTestClient  implements CommandLineRunner {
 			String[] values = sentinels.split(",");
 			Set<String> sentinelSet = new HashSet<String>(Arrays.asList(values)); 
 			this.pool = new SentinelPool(new JedisSentinelPool(sentinelMaster, sentinelSet, config));
+			System.out.println("jedis mode:Sentinel");
 			System.out.println("sentinels:" + sentinels);
 			System.out.println("sentinelMaster:" + sentinelMaster);
+			
 		}else {
 			this.pool = new StandardPool(new JedisPool(config, redis, 6379));
+			System.out.println("jedis mode:Standalone");
 			System.out.println("redis:" + redis);
+			
 		}
 		
 		System.out.println("poolSize:" + poolSize);
@@ -153,6 +163,8 @@ public class JedisMultipleTestClient  implements CommandLineRunner {
 		System.out.println("expiryInSec:" + expiryInSec);
 		System.out.println("deleteKeys:" + deleteKeys);
 		System.out.println("thresholdMsec:" + thresholdMsec);
+		System.out.println("thresholdWaitJedisPoolMsec:" + thresholdWaitJedisPoolMsec);
+		
 		System.out.println("cmdStrategy:" + strategy);
 		
 		System.out.println("total number of keys to generate:" + concurrentProducers * times * entryCount);
@@ -164,37 +176,76 @@ public class JedisMultipleTestClient  implements CommandLineRunner {
 		void destroy();
 	}
 	
-	class StandardPool implements Pool {
+	abstract class AbstractPool implements Pool {
+		volatile int failedResourceReq = 0;
+		volatile int slowResourceReq = 0;
+
+		volatile long totalWaitTime = 0;
+		
+		public Jedis getResource() {
+			long t0 = System.currentTimeMillis();
+			Jedis jedis =  null;
+			try {
+				jedis = templateGetResource();
+				return jedis;
+			}finally {
+				long t1 = System.currentTimeMillis(); 
+				if (jedis == null) {
+					failedResourceReq++;
+				}
+				long diff = t1 - t0;
+				totalWaitTime += diff;
+				if (diff > thresholdWaitJedisPoolMsec) {
+					slowResourceReq++;
+				}
+			}
+		}
+
+		protected abstract Jedis templateGetResource();
+		
+		@Override
+		public void destroy() {
+			System.out.println("JedisPool Stats  (totalWaitTime/failed/slow requests) in mssec: " + totalWaitTime + "/" + failedResourceReq + "/" + slowResourceReq);
+			
+		}
+	}
+	
+	class StandardPool extends AbstractPool {
 		JedisPool pool;
+		
 		
 		public StandardPool(JedisPool pool) {
 			super();
 			this.pool = pool;
 		}
 
-		public Jedis getResource() {
-			return pool.getResource();
+		protected Jedis templateGetResource() {
+			return pool.getResource();			
 		}
 
 		@Override
 		public void destroy() {
+			super.destroy();
 			pool.destroy();
 			
 		}
 	}
-	class SentinelPool implements Pool {
+	class SentinelPool extends AbstractPool {
 		JedisSentinelPool pool;
 		
 		public SentinelPool(JedisSentinelPool pool) {
 			super();
 			this.pool = pool;
+			
 		}
 
-		public Jedis getResource() {
+		protected Jedis templateGetResource() {
 			return pool.getResource();
 		}
+		
 		@Override
 		public void destroy() {
+			super.destroy();
 			pool.destroy();
 			
 		}
@@ -211,6 +262,7 @@ public class JedisMultipleTestClient  implements CommandLineRunner {
 	List<WorkflowSequencer> sequencers = new ArrayList<WorkflowSequencer>();
 	
 	private void test() throws InterruptedException {
+		
 		
 		System.out.println("Executing Test with "+ concurrentProducers + " concurrent connections");
 		if (poolSize < concurrentProducers) {
