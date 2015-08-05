@@ -319,14 +319,16 @@ public class JedisMultipleTestClient  implements CommandLineRunner {
 				}catch(JedisConnectionException e) {
 					circuitBreakerClosed = true;
 					failedWorkflows++;
-					System.err.println("Connection failed/closed");
+					System.err.println("Connection failed/closed. Reason:"+ e.getMessage());
 				}catch(RuntimeException e) {
 					failedWorkflows++;
 				}
 									
 			
 			}
-			System.err.println("Failed to complete " + failedWorkflows + " workflows");
+			if (failedWorkflows > 0 ) {
+				System.err.println("Failed to complete " + failedWorkflows + " workflows");
+			}
 			
 			waitUntilCompleted.release();
 		}
