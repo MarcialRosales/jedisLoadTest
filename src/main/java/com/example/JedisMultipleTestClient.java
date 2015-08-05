@@ -1,8 +1,10 @@
 package com.example;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
@@ -129,6 +131,8 @@ public class JedisMultipleTestClient  implements CommandLineRunner {
 		config.setMaxTotal(poolSize);
 		config.setMaxWaitMillis(60000);
 
+		System.out.println("----- Settings :");
+		
 		if (sentinelMaster.trim().length() > 0) {
 			String[] values = sentinels.split(",");
 			Set<String> sentinelSet = new HashSet<String>(Arrays.asList(values)); 
@@ -204,6 +208,8 @@ public class JedisMultipleTestClient  implements CommandLineRunner {
 		}
 	}
 
+	List<WorkflowSequencer> sequencers = new ArrayList<WorkflowSequencer>();
+	
 	private void test() throws InterruptedException {
 		
 		System.out.println("Executing Test with "+ concurrentProducers + " concurrent connections");
@@ -213,14 +219,18 @@ public class JedisMultipleTestClient  implements CommandLineRunner {
 		
 		// we no need to start them at the same time (i..e semaphore, etc)
 		for (int i = 0; i < concurrentProducers; i++){
-			executor.execute(new WorkflowSequencer(new WorkflowImpl(i, cmdStrategy,  stats[i] = new Stat())));
+			WorkflowSequencer ws = new WorkflowSequencer(new WorkflowImpl(i, cmdStrategy,  stats[i] = new Stat()));
+			sequencers.add(ws);
+			executor.execute(ws);
 		}
+		
+		System.out.println("----- Stats :");
 		
 		// Note: we wait abortAfterNMin minutes for safety but clearly 
 		if (waitUntilCompleted.tryAcquire(concurrentProducers, abortAfterNMin, TimeUnit.MINUTES)) {
-			System.out.println("All " + concurrentProducers + " completed");
+			System.out.println("All " + concurrentProducers + " concurrentProducers completed");
 		}else {
-			System.out.println("Only " + waitUntilCompleted.availablePermits() + " completed after " + abortAfterNMin + "(abortAfterNMin) minutes");
+			System.out.println("Only " + waitUntilCompleted.availablePermits() + " concurrentProducers completed after " + abortAfterNMin + "(abortAfterNMin) minutes");
 		}
 		printStats();
 	}
@@ -230,6 +240,16 @@ public class JedisMultipleTestClient  implements CommandLineRunner {
 		long totalElapsed = 0;
 		long totalCommands = 0;
 		long greaterThanThreshold = 0;
+		
+		int failedWorkflows = 0;
+		int completedWorkflows = 0;
+		
+		for (WorkflowSequencer wf : sequencers) {
+			failedWorkflows += wf.failedWorkflows;
+			completedWorkflows += wf.completedWorkflows;
+		}
+		
+		System.out.println("Completed/Failed workflows: " + completedWorkflows + "/" + failedWorkflows);
 		
 		for  (int i = 0; i < stats.length; i++) {
 			if (stats[i].maxElapsed > maxElapsed) {
@@ -248,15 +268,12 @@ public class JedisMultipleTestClient  implements CommandLineRunner {
 		
 		sb.setLength(0);
 		sb.append("Max/Average ResponseTime: ").append(maxElapsed).append("/").append(totalElapsed / totalCommands);
-		System.out.println(sb.toString());
 		
-		sb.setLength(0);
 		if (greaterThanThreshold > 0) {
 			long percentage = (greaterThanThreshold * 100) / totalCommands;
-			sb.append("% greater than threshold(").append(thresholdMsec).append("msec)").append("").append(percentage)
-				.append("% (").append(greaterThanThreshold).append(")");
+			sb.append(" ").append(percentage).append("% of commands (").append(greaterThanThreshold).append(") took over ").append(thresholdMsec).append("msec");
 		}else {
-			sb.append("Latency below ").append(thresholdMsec).append("msec");
+			sb.append("  All commands executed below ").append(thresholdMsec).append("msec");
 		}
 		System.out.println(sb.toString());
 		
@@ -270,6 +287,8 @@ public class JedisMultipleTestClient  implements CommandLineRunner {
 	class WorkflowSequencer implements Runnable {
 		
 		Workflow workflow;
+		int failedWorkflows = 0;
+		int completedWorkflows = 0;
 		
 		WorkflowSequencer(Workflow workflow) {
 			this.workflow = workflow;
@@ -297,11 +316,12 @@ public class JedisMultipleTestClient  implements CommandLineRunner {
 		}
 		public void run() {
 			
-			int failedWorkflows = 0;
+
 			boolean circuitBreakerClosed = false;
 			
 			// every time simulates a distinct workflow/user
 			for (int i = 0; i < times; i++) {
+				 
 				if (circuitBreakerClosed) {
 					if (waitUntilConnectionRestored(120000)) {
 						circuitBreakerClosed = false;
@@ -316,6 +336,8 @@ public class JedisMultipleTestClient  implements CommandLineRunner {
 						workflow.invoke();
 					}
 					workflow.terminate();
+					
+					completedWorkflows++;
 				}catch(JedisConnectionException e) {
 					circuitBreakerClosed = true;
 					failedWorkflows++;
@@ -325,9 +347,6 @@ public class JedisMultipleTestClient  implements CommandLineRunner {
 				}
 									
 			
-			}
-			if (failedWorkflows > 0 ) {
-				System.err.println("Failed to complete " + failedWorkflows + " workflows");
 			}
 			
 			waitUntilCompleted.release();
