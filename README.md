@@ -59,6 +59,7 @@ Number of unique keys generated as the result of invoking the above command: tim
 <tr><td>expiryInSec:120     </td><td>  expiry time in seconds for the keys</td>
 <tr><td>deleteKeys:true  </td><td>     delete the keys after running a full workflow (i.e. workflowTimes). if false, the keys are not removed and redis removes them when they expire.</td>
 <tr><td>cmdStrategy:single  </td><td>  single uses hget/hset , multiple uses hmget/hmset</td>
-<tr><td>thresholdMsec:100     </td><td>track how many commands executed over 100msec</td>
+<tr><td>thresholdLatencyMsec:100     </td><td>track how many commands executed over 100msec</td>
+<tr><td>thresholdWaitJedisPoolMsec:10     </td><td>track how many times we have to wait more than 10msec to get a Jedis connection </td>
 </table>
 

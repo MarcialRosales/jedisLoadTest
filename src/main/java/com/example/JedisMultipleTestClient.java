@@ -97,8 +97,8 @@ public class JedisMultipleTestClient  implements CommandLineRunner {
 	
 	
 	/** Maximum allowed or tolerated latency for each redis command. Every latency that exceeds this threshold is accounted  */
-	@Value("${thresholdMsec:100}")
-	int thresholdMsec = 100;
+	@Value("${thresholdLatencyMsec:100}")
+	int thresholdLatencyMsec = 100;
 	
 	/** threshold wait time for getting a JedisConnection */
 	@Value("${thresholdWaitJedisPoolMsec:10}")
@@ -162,7 +162,7 @@ public class JedisMultipleTestClient  implements CommandLineRunner {
 		System.out.println("entryCount:" + entryCount);
 		System.out.println("expiryInSec:" + expiryInSec);
 		System.out.println("deleteKeys:" + deleteKeys);
-		System.out.println("thresholdMsec:" + thresholdMsec);
+		System.out.println("thresholdMsec:" + thresholdLatencyMsec);
 		System.out.println("thresholdWaitJedisPoolMsec:" + thresholdWaitJedisPoolMsec);
 		
 		System.out.println("cmdStrategy:" + strategy);
@@ -236,7 +236,7 @@ public class JedisMultipleTestClient  implements CommandLineRunner {
 		public SentinelPool(JedisSentinelPool pool) {
 			super();
 			this.pool = pool;
-			
+			System.out.println("Current master @ " + pool.getCurrentHostMaster().getHost() + ":" + pool.getCurrentHostMaster().getPort());
 		}
 
 		protected Jedis templateGetResource() {
@@ -255,7 +255,7 @@ public class JedisMultipleTestClient  implements CommandLineRunner {
 	private void healthCheck() {
 		// check whether server is running or not
 		try (Jedis jedis = pool.getResource()) {
-			System.out.println("Server is running: " + jedis.ping());
+			System.out.println("Server is running: " + jedis.ping());			
 		}
 	}
 
@@ -264,7 +264,7 @@ public class JedisMultipleTestClient  implements CommandLineRunner {
 	private void test() throws InterruptedException {
 		
 		
-		System.out.println("Executing Test with "+ concurrentProducers + " concurrent connections");
+		System.out.println("Executing Test with "+ concurrentProducers + " concurrent producers/threads");
 		if (poolSize < concurrentProducers) {
 			System.err.println("Note: poolSize < concurrentProducers");
 		}
@@ -323,9 +323,9 @@ public class JedisMultipleTestClient  implements CommandLineRunner {
 		
 		if (greaterThanThreshold > 0) {
 			long percentage = (greaterThanThreshold * 100) / totalCommands;
-			sb.append(" ").append(percentage).append("% of commands (").append(greaterThanThreshold).append(") took over ").append(thresholdMsec).append("msec");
+			sb.append(" (").append(percentage).append("% of commands (").append(greaterThanThreshold).append(") took over ").append(thresholdLatencyMsec).append("msec)");
 		}else {
-			sb.append("  All commands executed below ").append(thresholdMsec).append("msec");
+			sb.append(" (All commands executed below ").append(thresholdLatencyMsec).append("msec)");
 		}
 		System.out.println(sb.toString());
 		
@@ -557,7 +557,7 @@ public class JedisMultipleTestClient  implements CommandLineRunner {
 			if (elapsed > maxElapsed) {
 				maxElapsed = elapsed;
 			}
-			if (elapsed > thresholdMsec) {
+			if (elapsed > thresholdLatencyMsec) {
 				greaterThanThreshold++;
 			}
 			
