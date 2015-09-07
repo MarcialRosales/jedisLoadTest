@@ -1,0 +1,98 @@
+      
+# default scenario configuration settings
+# How it works:
+# thread1 -> [group1] [group2] ... [groupN]   each group is like a set of redis operations on a set of keys .. Each group has its own distinct set of keys
+#  ...
+# threadn -> [group1] [group2] ... [groupN]   each group is like a set of redis operations on a set of keys .. Each group on each thread has its own distinct set of keys
+#
+# as many threads as concurrentProducers, and as many concurrent groups as concurrentGroupCount
+# 
+# Groupi = { run(i), run(i), ,.... , terminate(i) } as many times as repeatGroupTimes
+# 
+# Total number of created keys : concurrentProducers (threads) x concurrentGroupCount (number of groups invoked per thread) x entryCount (number of keys created per group)
+
+concurrentProducers: 2 #number of concurrent threads/producers executing N group of operations
+concurrentGroupCount: 10 #number of group of operations. Each group of operations manipulates their own set of keys (entryCount). One thread/producer invokes one group at a time.
+repeatGroupTimes: 100  # number of times we invoke each group.
+
+entryCount: 10 #number of keys manipulated within a group of operations
+fieldCount: 20  #number of fields within a hash manipulated within a group of operations
+dataLength: 200 #number of bytes of each field: total amount of data in a key = fieldCount * dataLength 
+deleteKeys: true # delete keys when the group terminates after invoking it repeatGroupTimes 
+oneConnectionPerCommand: false #use one connection per command or share one connection for various commands
+abortAfterNMin: 4 #default is 10 minutes
+
+poolSize: 40 #number of connections in the pool to connect to one single Redis server
+
+redis:
+  sentinels: # define here the common sentinel cluster of servers to manage all the nodes
+      - localhost:26379
+  nodes:    # all the virtual nodes (i.e. master name) and/or physical nodes (hostname:port) without HA
+      - master@node1
+      - master@node2
+      - anothernode:6379  # without HA
+      
+  clusters: # define here the partitioned clusters: i.e. a group of nodes that make up a cluster where we distributed keys uniformly
+      - cluster1:
+        - mastmer@node1
+        - mastmer@node2
+      - cluster2:
+        - mastmer@node1
+        - mastmer@node2
+        - anothernode:6379
+ 
+         
+    
+spring:
+  profiles.active: standalone,loadtest 
+        
+
+--- # This is the most basic setup, just one node (the single redis instance)
+spring:
+    profiles: standalone
+  
+cluster:          # by default, ha:false, sharded:false
+  name : master
+  nodes:
+        - localhost:6379
+
+
+--- # This is the sharded+HA set up   
+spring:
+    profiles: shardHA
+
+cluster:
+  name : master   # used to build the masters' name
+  ha: true        # -> nodes are sentinels
+  sharded: true   # -> shardSize tells us how many masters or shard nodes we have
+  shardSize: 3    # -> masters are { myshard-1, myshard-2, myshard-3 }. Starts with 1.
+  nodes:          # -> these are the sentinels used for all masters
+        - localhost:26379
+        
+
+--- # This is the sharded without HA   
+spring:
+    profiles: shard
+
+cluster:          # by default ha:false
+  name : master   # used to build the masters' name
+  sharded: true   # -> shardSize tells us how many shard nodes
+  shardSize: 3    # -> this setting is optional because the cluster size is determined by the number of declared nodes
+  nodes:          # -> these are the shard nodes. masters are { myshard-1, myshard-2, myshard-3 }. Starts with 1.
+        - localhost:6379
+        - localhost:6380
+        - localhost:6381
+        
+
+--- # This is the HA set up -using Sentinel- where the test application connects to the master with the help of sentinel
+spring:
+    profiles: HA
+  
+cluster:         # by default sharded: false
+  name : master # single master name
+  ha: true       # -> nodes are sentinels
+  nodes:         # -> these are the sentinels
+        - localhost:26379
+        
+# there is no need to list the nodes because Sentinel doees it for us
+
